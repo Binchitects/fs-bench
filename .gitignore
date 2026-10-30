@@ -1,0 +1,6 @@
+build/
+.scratch/
+/*-results.json
+/*-report.md
+/*.csv
+build-win/

@@ -1,0 +1,50 @@
+name: build-and-test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Locate binary
+        shell: bash
+        run: |
+          if [ -f build/Release/fsbench.exe ]; then echo "FSB=build/Release/fsbench.exe" >> "$GITHUB_ENV";
+          else echo "FSB=build/fsbench" >> "$GITHUB_ENV"; fi
+
+      - name: Functional tests
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/fsb"
+          "$FSB" test -t "$RUNNER_TEMP/fsb" --profile quick --no-color --json test-results.json --md test-report.md
+
+      - name: Smoke benchmark
+        shell: bash
+        run: |
+          "$FSB" bench -t "$RUNNER_TEMP/fsb" --profile quick --file-size 128M --duration 1s --files 1000 --tree-files 300 \
+            --no-color --json bench-results.json --md bench-report.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fsbench-${{ matrix.os }}
+          path: |
+            build/fsbench
+            build/Release/fsbench.exe
+            *-results.json
+            *-report.md
